@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title></title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/addons/p5.sound.min.js"></script>
+  <style>
+    body { margin:0; overflow:hidden; background:#f0f0f0; }
+    #startBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 15px 30px;
+      font-size: 20px;
+      background: #4caf50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <button id="startBtn">Start Game</button>
+<script>
+let dino;
+let obstacles = [];
+let score = 0;
+let gameOver = false;
+let gameStarted = false; 
+
+let pokemonImg;
+let jumpSound, bgmSound, gameOverSound; 
+
+let jumpTriggered = false;
+
+function preload() {
+  pokemonImg = loadImage('jump-main/haha-removebg-preview.png');
+  jumpSound = loadSound('jumpp.mp3');
+  bgmSound = loadSound('bg-music.mp3');
+  gameOverSound = loadSound('game-over.mp3');
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight * 0.6);
+  dino = new Dino();
+}
+
+function startGame() {
+  gameStarted = true;
+  document.getElementById("startBtn").style.display = "none";
+  obstacles = [];
+  score = 0;
+  gameOver = false;
+  dino = new Dino();
+  obstacles.push(new Obstacle());
+
+  if (!bgmSound.isPlaying()) {
+    bgmSound.setLoop(true);
+    bgmSound.play();
+  }
+}
+
+function draw() {
+  background(220);
+
+  if (!gameStarted) {
+    fill(0);
+    textSize(32);
+    textAlign(CENTER);
+    text('Pendot the Start Button to Play', width/2, height/2 - 50);
+    return;
+  }
+
+  if (!gameOver && (keyIsDown(32) || keyIsDown(UP_ARROW))) {
+    if (!jumpTriggered) {
+      dino.jump();
+
+      if (jumpSound.isPlaying()) jumpSound.stop();
+      jumpSound.play();
+
+      jumpTriggered = true;
+    }
+  } else {
+    jumpTriggered = false;
+  }
+
+  if (!gameOver) {
+    dino.update();
+    dino.show();
+
+    if (frameCount % 60 === 0) {
+      obstacles.push(new Obstacle());
+    }
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      obstacles[i].update();
+      obstacles[i].show();
+
+      if (!gameOver && obstacles[i].hits(dino)) {
+        gameOver = true;
+        dino.flyAway = true;
+
+        stopAllSounds();
+        gameOverSound.play();
+      }
+
+      if (obstacles[i].offscreen()) {
+        obstacles.splice(i, 1);
+        score += 10;
+      }
+    }
+
+    fill(0);
+    textSize(20);
+    textAlign(LEFT);
+    text('Score: ' + score, 10, 30);
+
+  } else {
+    dino.update();
+    dino.show();
+
+    fill(0);
+    textSize(32);
+    textAlign(CENTER);
+    text('Game Over', width/2, height/2);
+    text('Score: ' + score, width/2, height/2 + 40);
+
+    fill(255,0,0);
+    textSize(28);
+    text('Press R to Restart', width/2, height/2 + 80);
+  }
+}
+
+function keyPressed() {
+  if (key.toLowerCase() === 'r' && gameOver) {
+    if (gameOverSound.isPlaying()) gameOverSound.stop();
+
+    obstacles = [];
+    score = 0;
+    gameOver = false;
+    dino = new Dino();
+    obstacles.push(new Obstacle());
+
+    if (!bgmSound.isPlaying()) {
+      bgmSound.loop();
+    }
+  }
+}
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight * 0.6);
+}
+
+function stopAllSounds() {
+  if (bgmSound.isPlaying()) bgmSound.stop();
+  if (jumpSound.isPlaying()) jumpSound.stop();
+}
+
+
+class Dino {
+  constructor() {
+    this.x = 50;
+    this.y = height - 50;
+    this.velocity = 0;
+    this.gravity = 0.8;
+    this.lift = -15;
+    this.width = 60;
+    this.height = 100;
+    this.flyAway = false;
+    this.rotation = 0;
+  }
+  jump() {
+    if (this.y >= height - 50 && !this.flyAway) {
+      this.velocity = this.lift;
+    }
+  }
+  update() {
+    if (this.flyAway) {
+      this.y -= 5;
+      this.rotation += 0.2;
+      return;
+    }
+    this.velocity += this.gravity;
+    this.y += this.velocity;
+    if (this.y > height - 50) {
+      this.y = height - 50;
+      this.velocity = 0;
+    }
+  }
+  show() {
+    push();
+    if (this.flyAway) {
+      translate(this.x + this.width/2, this.y - this.height/2);
+      rotate(this.rotation);
+      imageMode(CENTER);
+      image(pokemonImg, 0, 0, this.width, this.height);
+    } else {
+      image(pokemonImg, this.x, this.y - this.height + 50, this.width, this.height);
+    }
+    pop();
+  }
+}
+
+class Obstacle {
+  constructor() {
+    this.x = width;
+    this.y = height - 50;
+    this.width = 20;
+    this.height = 40;
+    this.speed = 6;
+  }
+  update() {
+    this.x -= this.speed;
+  }
+  show() {
+    fill(255, 100, 100);
+    rect(this.x, this.y, this.width, this.height);
+  }
+  offscreen() {
+    return this.x < -this.width;
+  }
+  hits(dino) {
+    let padding = 10;
+    return (
+      dino.x + dino.width - padding > this.x &&
+      dino.x + padding < this.x + this.width &&
+      dino.y + dino.height - padding > this.y
+    );
+  }
+}
+
+document.getElementById("startBtn").addEventListener("click", () => {
+  startGame();
+});
+</script>
+</body>
+</html>
